@@ -1,0 +1,293 @@
+// ELIN store database in Google Sheets + PREMIUM GMAIL (v4: fast, designed email tables, styled sheet)
+//
+// SET UP (once, about 5 minutes)
+// 1. Create a new Google Sheet (name it "ELIN store data").
+// 2. Extensions > Apps Script. Delete everything, paste this whole file.
+// 3. Change ADMIN_KEY below to a long secret only you know (20+ characters).
+//    OWNER_EMAIL is already your connected Gmail (elin.dt01@gmail.com). Keep it.
+// 4. Press Run on the function  setupOnce  and click Allow (so the script may send email and style the sheet).
+// 4b. (needed for the fast version) after pasting, press Run on setupOnce again and Allow: the script now also sends email in the background.
+// 5. Deploy > New deployment > type Web app. Execute as: Me. Who has access: Anyone. Deploy.
+//    (If you already deployed before: Deploy > Manage deployments > Edit > Version: New version > Deploy. The URL stays the same.)
+// 6. Copy the Web app URL into js/data.js  webhook:"..."  (or Admin > Settings, then Publish). Upload the site.
+// 7. In Admin > Orders (or Customers / Resellers) type the same ADMIN_KEY once.
+//
+// WHAT IT DOES (every order, reseller form and sign-in)
+// - Saves ONE row in the Google Sheet (tabs Orders, Customers, Wholesale) with a dark header, gold line and striped rows.
+// - Emails your Gmail a designed email: big summary, a clean table of every answer, one-tap Call / WhatsApp / Reply buttons.
+// - Sends the customer a matching thank-you email (set CUSTOMER_COPY = false to switch off).
+// - Fast: the sheet is styled only once, the script answers as soon as the row and your email are done, and the website
+//   wakes the script up before the customer presses the button.
+// - Blocks spreadsheet-formula injection, cuts long fields, slows spam (max 500 writes a day), never stores sign-in tokens.
+// The ADMIN_KEY stays inside Google. Never put it in a file you publish.
+
+var ADMIN_KEY = "CHANGE-THIS-TO-A-LONG-SECRET";
+var OWNER_EMAIL = "elin.dt01@gmail.com";   // your connected Gmail: every new order and reseller form arrives here at once.
+var STORE_EMAIL = "";      // optional second address that gets a copy (leave "" so only the Gmail above receives orders)
+var STORE_NAME = "ELIN";
+var CUSTOMER_COPY = true;  // true = customer also gets a thank-you email
+var GOOGLE_CLIENT_ID = ""; // optional: same Client ID as in ELIN Admin > Settings
+var FACEBOOK_APP_ID = "";  // optional: same App ID as in ELIN Admin > Settings
+var TZ = "Asia/Karachi";   // Pakistan time. Every time in the sheet and in the emails uses this, not the customer's phone clock.
+var MAX = 400, DAILY_LIMIT = 500;
+var PLUM = "#4a2342", GOLD = "#b8862d", SOFT = "#f6f1f7", LINE = "#e8dfe9", INK = "#17161b", MUTED = "#77737f";
+
+var SHEETS = {
+  order: { name: "Orders", cols: [
+    ["time","Time"],["id","Order"],["cname","Customer name"],["cemail","Customer login"],["via","Login with"],["verified","Verified"],
+    ["name","Delivery name"],["phone","Phone"],["email","Contact email"],["city","City"],["addr","Address"],["items","Items"],["sub","Subtotal"],["save","Bundle savings"],["disc","Discount"],["total","Total"],["pay","Payment"],["ship","Shipping"],["note","Note"],["bill","Billing"]] },
+  customer: { name: "Customers", cols: [
+    ["time","Time"],["name","Name"],["email","Email"],["uid","Account id"],["phone","Phone"],["via","Login with"],["verified","Verified"]] },
+  reseller: { name: "Wholesale", cols: [
+    ["time","Time"],["id","Application"],["fn","Name"],["bn","Business"],["bt","Business type"],["em","Email"],["ph","Phone"],["wa","WhatsApp"],["city","City"],["prov","Province"],
+    ["web","Website or page"],["cats","Categories"],["qty","Quantity per order"],["freq","Frequency"],["budget","Monthly budget"],["addr","Delivery"],["pay","Payment method"],["quote","Quotation needed"],["details","All answers"],["cemail","Signed in as"]] }
+};
+
+function clean(v, lim) {
+  v = String(v == null ? "" : v).slice(0, lim || MAX);
+  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+  return v;
+}
+function out(o) { return ContentService.createTextOutput(typeof o === "string" ? o : JSON.stringify(o)).setMimeType(typeof o === "string" ? ContentService.MimeType.TEXT : ContentService.MimeType.JSON); }
+function nowPK() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ssXXX"); }          // saved in the sheet, e.g. 2026-10-23T15:47:00+05:00
+function niceTime() { return Utilities.formatDate(new Date(), TZ, "dd MMM yyyy, hh:mm a") + " (PKT)"; }   // shown in emails
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+/* ---------- sheet: created and styled ONLY ONCE (fast afterwards) ---------- */
+function styleSheet(sh, ncols) {
+  var h = sh.getRange(1, 1, 1, ncols);
+  h.setBackground(PLUM).setFontColor("#ffffff").setFontWeight("bold").setFontSize(10).setVerticalAlignment("middle").setHorizontalAlignment("left");
+  sh.setRowHeight(1, 34);
+  sh.setFrozenRows(1);
+  sh.setFrozenColumns(2);
+  try { sh.getRange(1, 1, sh.getMaxRows(), ncols).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false); } catch (e) {}
+  try { sh.getBandings().forEach(function (b) { b.setHeaderRowColor(PLUM).setFirstRowColor("#ffffff").setSecondRowColor(SOFT); }); } catch (e) {}
+  sh.getRange(1, 1, 1, ncols).setBorder(false, false, true, false, false, false, GOLD, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), ncols).setFontSize(10).setVerticalAlignment("top").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+  for (var i = 1; i <= ncols; i++) sh.setColumnWidth(i, 130);
+  sh.setColumnWidth(1, 150);
+}
+function sheetFor(type) {
+  var spec = SHEETS[type], ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(spec.name);
+  var heads = spec.cols.map(function (c) { return c[1]; });
+  var props = PropertiesService.getScriptProperties(), flag = "ready_" + type + "_" + heads.length;
+  if (!sh) sh = ss.insertSheet(spec.name);
+  if (props.getProperty(flag) !== "1" || sh.getLastRow() === 0) {
+    if (sh.getLastRow() === 0) sh.appendRow(heads); else sh.getRange(1, 1, 1, heads.length).setValues([heads]);
+    styleSheet(sh, heads.length);
+    props.setProperty(flag, "1");
+  }
+  return sh;
+}
+function setupOnce() {   // press Run on this once: creates and styles the three tabs, and asks Google for permission to send email
+  ["order", "customer", "reseller"].forEach(sheetFor);
+  var d = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1");
+  if (d && d.getLastRow() === 0 && SpreadsheetApp.getActiveSpreadsheet().getSheets().length > 1) SpreadsheetApp.getActiveSpreadsheet().deleteSheet(d);
+  MailApp.sendEmail({ to: OWNER_EMAIL || Session.getEffectiveUser().getEmail(), subject: STORE_NAME + " website is connected", htmlBody: shell("Connected", "Your website forms now arrive here", "<p style='margin:0;font:14px/1.6 Arial,sans-serif;color:" + INK + "'>This is a test message. Every order and wholesale form will land in this Gmail as a clean table, and in your Google Sheet at the same moment.</p>"), body: "Your ELIN website is connected.", name: STORE_NAME + " website" });
+}
+
+/* ---------- sign-in checks ---------- */
+function verifyLogin(d) {
+  try {
+    if (d.via === "google" && d.tok) {
+      var r = JSON.parse(UrlFetchApp.fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(d.tok), { muteHttpExceptions: true }).getContentText());
+      var ok = r.email && String(r.email).toLowerCase() === String(d.email).toLowerCase() && String(r.email_verified) === "true";
+      if (ok && GOOGLE_CLIENT_ID) ok = r.aud === GOOGLE_CLIENT_ID;
+      return ok ? "yes" : "no";
+    }
+    if (d.via === "facebook" && d.tok) {
+      var me = JSON.parse(UrlFetchApp.fetch("https://graph.facebook.com/me?fields=id&access_token=" + encodeURIComponent(d.tok), { muteHttpExceptions: true }).getContentText());
+      var ok2 = me.id && ("fb:" + me.id) === d.uid;
+      if (ok2 && FACEBOOK_APP_ID) {
+        var app = JSON.parse(UrlFetchApp.fetch("https://graph.facebook.com/app?access_token=" + encodeURIComponent(d.tok), { muteHttpExceptions: true }).getContentText());
+        ok2 = String(app.id) === String(FACEBOOK_APP_ID);
+      }
+      return ok2 ? "yes" : "no";
+    }
+  } catch (e) {}
+  return "no";
+}
+function customerVerified(uid) {
+  if (!uid) return "no";
+  var sh = sheetFor("customer"), n = sh.getLastRow();
+  if (n < 2) return "no";
+  var f = sh.getRange(2, 4, n - 1, 1).createTextFinder(String(uid)).matchEntireCell(true).findNext();   // one quick search instead of reading every row
+  return f && String(sh.getRange(f.getRow(), 7).getValue()) === "yes" ? "yes" : "no";
+}
+function exists(sh, id) {
+  if (!id || sh.getLastRow() < 2) return false;
+  var f = sh.getRange(2, 2, sh.getLastRow() - 1, 1).createTextFinder(String(id)).matchEntireCell(true).findNext();
+  return !!f;
+}
+
+/* ---------- premium email design ---------- */
+function shell(tag, title, inner, foot) {
+  return '<div style="background:#efeaf1;padding:24px 10px;font-family:Arial,Helvetica,sans-serif">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid ' + LINE + '">' +
+    '<tr><td style="background:' + PLUM + ';padding:26px 28px 22px"><div style="font:700 11px Arial,sans-serif;letter-spacing:3px;color:#e8c566;text-transform:uppercase">' + esc(STORE_NAME) + ' &nbsp;&bull;&nbsp; ' + esc(tag) + '</div>' +
+    '<div style="font:700 24px Georgia,serif;color:#ffffff;margin-top:8px;line-height:1.25">' + esc(title) + '</div></td></tr>' +
+    '<tr><td style="height:3px;background:linear-gradient(90deg,#b8862d,#e8c566,#b8862d);font-size:0;line-height:0">&nbsp;</td></tr>' +
+    '<tr><td style="padding:24px 28px 8px">' + inner + '</td></tr>' +
+    '<tr><td style="padding:14px 28px 26px;font:12px/1.6 Arial,sans-serif;color:' + MUTED + '">' + (foot || (esc(STORE_NAME) + ' website &middot; ' + niceTime())) + '</td></tr></table></div>';
+}
+function kpis(list) {   // list of [label, value]
+  var w = Math.floor(100 / list.length);
+  return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px"><tr>' + list.map(function (k, i) {
+    return '<td width="' + w + '%" style="background:' + SOFT + ';border:1px solid ' + LINE + ';border-radius:10px;padding:12px 14px;' + (i ? '' : '') + '"><div style="font:700 10px Arial,sans-serif;letter-spacing:1.5px;color:' + MUTED + ';text-transform:uppercase">' + esc(k[0]) + '</div><div style="font:700 17px Georgia,serif;color:' + PLUM + ';margin-top:4px">' + esc(k[1]) + '</div></td>' + (i < list.length - 1 ? '<td width="8" style="font-size:0">&nbsp;</td>' : '');
+  }).join('') + '</tr></table>';
+}
+function table(title, pairs) {   // pairs of [label, value]; empty values are skipped
+  var rows = pairs.filter(function (p) { var v = String(p[1] == null ? "" : p[1]).trim(); return v && v !== "-"; });
+  if (!rows.length) return "";
+  return '<div style="font:700 11px Arial,sans-serif;letter-spacing:2px;color:' + GOLD + ';text-transform:uppercase;margin:6px 0 8px">' + esc(title) + '</div>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ' + LINE + ';border-radius:10px;border-collapse:separate;overflow:hidden;margin-bottom:20px">' +
+    rows.map(function (p, i) {
+      return '<tr style="background:' + (i % 2 ? SOFT : '#ffffff') + '"><td width="36%" style="padding:11px 14px;font:700 12px Arial,sans-serif;color:' + MUTED + ';vertical-align:top;border-bottom:1px solid ' + LINE + '">' + esc(p[0]) + '</td><td style="padding:11px 14px;font:14px/1.5 Arial,sans-serif;color:' + INK + ';border-bottom:1px solid ' + LINE + ';white-space:pre-wrap">' + esc(p[1]) + '</td></tr>';
+    }).join('') + '</table>';
+}
+function btn(label, href, solid) {
+  return '<a href="' + esc(href) + '" style="display:inline-block;margin:0 8px 8px 0;padding:11px 20px;border-radius:999px;font:700 13px Arial,sans-serif;text-decoration:none;' + (solid ? 'background:' + PLUM + ';color:#ffffff' : 'background:#ffffff;color:' + PLUM + ';border:1px solid ' + PLUM) + '">' + esc(label) + '</a>';
+}
+function digits(p) { var s = String(p || "").replace(/[^\d]/g, ""); if (s.indexOf("0") === 0) s = "92" + s.slice(1); return s; }
+function itemsTable(items) {
+  var lines = String(items || "").split(" ; ").filter(String);
+  return table("Items ordered", lines.map(function (l, i) { return ["Item " + (i + 1), l.replace(/^\d+\)\s*/, "")]; }));
+}
+function parseDetails(txt) {   // "Label: value" lines -> [label, value] pairs
+  return String(txt || "").split("\n").map(function (l) { var k = l.indexOf(": "); return k > 0 ? [l.slice(0, k), l.slice(k + 2)] : ["", l]; }).filter(function (p) { return p[1]; });
+}
+function ownerMail(d) {
+  var subject, html, plain, to = OWNER_EMAIL || Session.getEffectiveUser().getEmail(), reply = "";
+  if (d.type === "order") {
+    subject = "New " + STORE_NAME + " order " + d.id + " - " + d.name + " - Rs. " + d.total;
+    var pr = [["Subtotal", d.sub != null && d.sub !== "" ? "Rs. " + d.sub : ""], ["Bundle savings", +d.save ? "-Rs. " + d.save : ""], ["Discount", +d.disc ? "-Rs. " + d.disc : ""], ["Shipping", d.ship], ["TOTAL", "Rs. " + d.total], ["Payment", d.pay]];
+    html = shell("New order", "Order " + d.id, kpis([["Total", "Rs. " + d.total], ["Payment", d.pay || "-"], ["City", d.city || "-"]]) + table("Received", [["Time", niceTime()]]) +
+      itemsTable(d.items) + table("Payment summary", pr) +
+      table("Delivery", [["Name", d.name], ["Phone", d.phone], ["Email", d.email], ["Address", d.addr], ["Billing", d.bill], ["Note", d.note]]) +
+      table("Placed by", [["Account", d.cname], ["Login", d.via], ["Login id", d.cemail], ["Verified", d.verified]]) +
+      '<div style="margin:4px 0 14px">' + (d.phone ? btn("Call customer", "tel:" + d.phone, true) + btn("WhatsApp", "https://wa.me/" + digits(d.phone) + "?text=" + encodeURIComponent("Hello " + d.name + ", this is " + STORE_NAME + ". We received your order " + d.id + "."), false) : "") + '</div>');
+    plain = "New website order " + d.id + "\n\n" + String(d.items).split(" ; ").join("\n") + "\n\nTOTAL: Rs. " + d.total + "\nPayment: " + d.pay + "\nShipping: " + d.ship + "\n\nName: " + d.name + "\nPhone: " + d.phone + "\nEmail: " + (d.email || "-") + "\nAddress: " + d.addr + "\nBilling: " + (d.bill || "-") + "\nNote: " + (d.note || "-") + "\nPlaced by: " + d.cname + " (" + d.via + ", " + d.cemail + ")";
+    reply = d.email || d.lemail || "";
+  } else {
+    subject = "New wholesale application " + d.id + " - " + (d.bn || d.fn);
+    var det = parseDetails(d.details);
+    html = shell("Wholesale application", d.bn || d.fn || ("Application " + d.id), kpis([["Application", d.id], ["Name", d.fn || "-"], ["City", d.city || "-"]]) + table("Received", [["Time", niceTime()]]) +
+      table("All answers", det.length ? det : [["Details", d.fn + " " + d.ph]]) + table("Signed in as", [["Account", d.cemail]]) +
+      '<div style="margin:4px 0 14px">' + ((d.ph || d.wa) ? btn("Call", "tel:" + (d.ph || d.wa), true) + btn("WhatsApp", "https://wa.me/" + digits(d.wa || d.ph) + "?text=" + encodeURIComponent("Hello " + (d.fn || "") + ", this is " + STORE_NAME + " about your wholesale application " + d.id + "."), false) : "") + '</div>');
+    plain = "New wholesale application " + d.id + "\n\n" + (d.details || (d.fn + " " + d.ph)) + "\n\nSigned in as: " + (d.cemail || "-");
+    reply = d.em || d.lemail || "";
+  }
+  var o = { to: to, subject: subject, body: plain, htmlBody: html, name: STORE_NAME + " website" };
+  if (STORE_EMAIL && STORE_EMAIL.toLowerCase() !== String(to).toLowerCase()) o.cc = STORE_EMAIL;
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(reply)) o.replyTo = reply;
+  MailApp.sendEmail(o);
+}
+function customerMail(d) {
+  if (!CUSTOMER_COPY) return;
+  var list = [];
+  [d.lemail, d.type === "order" ? d.email : d.em, d.cemail].forEach(function (x) {
+    x = String(x || "").trim();
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x) && list.indexOf(x.toLowerCase()) < 0) list.push(x.toLowerCase());
+  });
+  if (!list.length) return;
+  var html, plain;
+  if (d.type === "order") {
+    html = shell("Thank you", "Your order " + d.id + " is received", '<p style="margin:0 0 16px;font:14px/1.6 Arial,sans-serif;color:' + INK + '">Hello ' + esc(d.name) + ', thank you for shopping with ' + esc(STORE_NAME) + '. We will confirm your order shortly.</p>' +
+      itemsTable(d.items) + table("Summary", [["Total", "Rs. " + d.total], ["Payment", d.pay], ["Delivery to", d.addr]]));
+    plain = "Thank you for your order " + d.id + ".\n\n" + String(d.items).split(" ; ").join("\n") + "\n\nTotal: Rs. " + d.total + " (" + d.pay + ")\nDelivery to: " + d.addr + "\n\nWe will confirm your order shortly.";
+  } else {
+    html = shell("Thank you", "Application " + d.id + " received", '<p style="margin:0 0 16px;font:14px/1.6 Arial,sans-serif;color:' + INK + '">Thank you for applying to the ' + esc(STORE_NAME) + ' reseller programme. Our team will contact you very soon.</p>');
+    plain = "Thank you for applying to the " + STORE_NAME + " reseller programme (application " + d.id + "). We will contact you very soon.";
+  }
+  list.slice(0, 2).forEach(function (cust) {
+    try { MailApp.sendEmail({ to: cust, name: STORE_NAME, subject: "Thank you - " + STORE_NAME + " " + d.id, body: plain, htmlBody: html }); } catch (x) {}
+  });
+}
+
+/* ---------- background email (keeps the form fast) ---------- */
+function queueSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), q = ss.getSheetByName("MailQueue");
+  if (!q) { q = ss.insertSheet("MailQueue"); q.hideSheet(); }
+  return q;
+}
+function queueMail(d) {
+  try {
+    queueSheet().appendRow([JSON.stringify(d)]);
+    var props = PropertiesService.getScriptProperties(), t = +props.getProperty("trig") || 0;
+    if (Date.now() - t > 120000) {                       // no sender waiting yet: schedule one for about 1 second from now
+      ScriptApp.newTrigger("sendPending").timeBased().after(1000).create();
+      props.setProperty("trig", String(Date.now()));
+    }
+  } catch (e) {                                           // could not queue (permission): send now so no mail is lost
+    try { ownerMail(d); } catch (x) {}
+    try { customerMail(d); } catch (y) {}
+  }
+}
+function sendPending() {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+    PropertiesService.getScriptProperties().deleteProperty("trig");
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "sendPending") ScriptApp.deleteTrigger(t); });
+    var q = queueSheet(), n = q.getLastRow();
+    if (n < 1) return;
+    var rows = q.getRange(1, 1, n, 1).getValues();
+    q.deleteRows(1, n);
+    rows.forEach(function (r) {
+      var d; try { d = JSON.parse(r[0]); } catch (e) { return; }
+      try { ownerMail(d); } catch (e1) { d._try = (d._try || 0) + 1; if (d._try < 3) q.appendRow([JSON.stringify(d)]); return; }
+      try { customerMail(d); } catch (e2) {}
+    });
+    if (q.getLastRow() > 0) { ScriptApp.newTrigger("sendPending").timeBased().after(60000).create(); PropertiesService.getScriptProperties().setProperty("trig", String(Date.now())); }
+  } finally { try { lock.releaseLock(); } catch (x) {} }
+}
+
+/* ---------- receive a form ---------- */
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var d = JSON.parse((e.postData && e.postData.contents) || "{}");
+    if (!SHEETS[d.type]) return out("ignored");
+    var props = PropertiesService.getScriptProperties();
+    var today = new Date().toISOString().slice(0, 10);
+    var n = props.getProperty("day") === today ? +props.getProperty("n") || 0 : 0;
+    if (n >= DAILY_LIMIT) return out("limit");
+    d.time = nowPK();
+    if (d.type === "customer") d.verified = verifyLogin(d);
+    if (d.type === "order") d.verified = customerVerified(d.cemail);
+    var sh = sheetFor(d.type);
+    if (d.type !== "customer" && exists(sh, d.id)) return out("dup");   // same order sent twice: do not save or email again
+    props.setProperties({ day: today, n: String(n + 1) });
+    sh.appendRow(SHEETS[d.type].cols.map(function (c) { return clean(d[c[0]], c[0] === "details" || c[0] === "items" ? 3000 : 0); }));
+    if (d.type !== "customer") queueMail(d);   // emails are sent a second later in the background, so the customer is not kept waiting
+    return out("ok");
+  } catch (err) {
+    return out("error");
+  } finally {
+    try { lock.releaseLock(); } catch (x) {}
+  }
+}
+
+// ping = the website wakes the script up before the customer presses Submit (makes the real submit faster)
+// Admin read-back: <web app URL>?action=list&key=ADMIN_KEY
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.action === "ping") return out("pong");
+  if (ADMIN_KEY === "CHANGE-THIS-TO-A-LONG-SECRET" || ADMIN_KEY.length < 12) return out({ ok: false, error: "Set ADMIN_KEY in the script first" });
+  if (p.action !== "list" || p.key !== ADMIN_KEY) return out({ ok: false, error: "Wrong key" });
+  var res = { ok: true };
+  ["order", "customer", "reseller"].forEach(function (t) {
+    if (p.t && p.t !== t) return;
+    var sh = sheetFor(t), n = sh.getLastRow(), cols = SHEETS[t].cols, rows = [];
+    if (n > 1) {
+      var vals = sh.getRange(2, 1, n - 1, cols.length).getValues();
+      for (var i = vals.length - 1; i >= 0 && rows.length < 2000; i--) {
+        var o = {}; cols.forEach(function (c, j) { o[c[0]] = String(vals[i][j]); }); rows.push(o);
+      }
+    }
+    res[t + "s"] = rows;
+  });
+  return out(res);
+}

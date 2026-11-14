@@ -1,0 +1,63 @@
+/* ===================== v40: shorter home page images (home only) =====================
+   Only affects the home page (html[data-th=home]). Category pages keep their own sizes.
+   To undo: delete css/v40.css and its <link> line in index.html. */
+
+/* product cards (New arrivals, Best sellers, category rows): 333x606 -> 4:5 */
+html[data-th=home]{--ar:4/5}
+html[data-th=home] .p .slot{aspect-ratio:4/5}
+
+/* hero: shorter */
+html body.hpage[data-hero] .cine,
+html[data-th=home] body.hpage .cine{height:calc(clamp(440px,calc(var(--hv) - 120px),560px) + var(--hdr))}
+@media(max-width:900px){html[data-th=home] body.hpage .cine{height:calc(clamp(460px,calc(var(--hv) - 80px),580px) + var(--hdr))}}
+
+/* The ELIN edit panels */
+html[data-th=home] .hp,html[data-th=home] .hp.p1,html[data-th=home] .hp.p2,html[data-th=home] .hp.c{aspect-ratio:1/1.1}
+@media(max-width:800px){html[data-th=home] .hp,html[data-th=home] .hp.p1,html[data-th=home] .hp.p2{aspect-ratio:1/1.1;flex:0 0 74vw}}
+
+/* Shop the galleries */
+html[data-th=home] .gc,html[data-th=home] .gc:nth-child(-n+3){aspect-ratio:4/3}
+html[data-th=home] .gc:nth-child(n+4){aspect-ratio:1/1.05}
+@media(max-width:1000px){html[data-th=home] .gc,html[data-th=home] .gc:nth-child(n),html[data-th=home] .gc:last-child:nth-child(odd){aspect-ratio:4/3}}
+@media(max-width:560px){html[data-th=home] .gc,html[data-th=home] .gc:nth-child(n),html[data-th=home] .gc:last-child:nth-child(odd){aspect-ratio:16/11}}
+
+/* Our story photo */
+html[data-th=home] .story .storyshw{aspect-ratio:16/10;max-height:380px}
+@media(max-width:800px){html[data-th=home] .story .storyshw{aspect-ratio:16/10;max-height:240px}}
+
+/* category banners (Bags made to be noticed / Walk in with confidence) */
+html[data-th=home] .cband .cbn{height:clamp(260px,26vw,380px)}
+@media(max-width:900px){html[data-th=home] .cband .cbn{height:260px}}
+
+/* Watch & shop videos */
+html[data-th=home] .rvfull .ct.reels>.vt,html[data-th=home] .rvfull .ct.reels>.vt:nth-child(n){aspect-ratio:1/1.1;max-height:70vh}
+
+/* Choose your style, wholesale band, end banners, newsletter */
+html[data-th=home] .pair a{aspect-ratio:2/1}
+@media(max-width:700px){html[data-th=home] .pair a{aspect-ratio:16/9}}
+html[data-th=home] .band .slot{min-height:220px}
+html[data-th=home] .fb{aspect-ratio:4.2/1;min-height:200px}
+@media(max-width:600px){html[data-th=home] .fb{min-height:200px}}
+html[data-th=home] .loop{padding:64px 5vw}
+
+/* ===== layout stability (stops the footer / logo / hero jumping while the page builds) ===== */
+#m:empty{min-height:160vh}
+header .logo{min-height:68px}
+@media(max-width:700px){header .logo{min-height:46px}}
+/* sensible first-paint header sizes (JS replaces them with the exact measured values) */
+:root{--hdr:150px;--hh:189px;--hx:98px}
+@media(max-width:700px){:root{--hdr:111px;--hh:150px;--hx:66px}}
+
+/* ===== v41 speed: smoother scrolling (wholesale page, home and every other page) =====
+   Live blur (backdrop-filter) re-draws everything behind it on every scroll frame, most of all over videos.
+   The header is already 94% white, so blur there was invisible anyway; on videos a slightly darker tint replaces it.
+   Delete this block to undo. */
+header{backdrop-filter:none;-webkit-backdrop-filter:none;background:#fffffff7}
+.cstrip{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:linear-gradient(180deg,#0000,#000b)!important}
+.hav,.snd,.cmute,.storyshw .swa{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:#00000059}
+.cc .eb,.cta .btn.o{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+/* wholesale form: lighter shadow on the big tall card,  */
+.form.xf.wsf{box-shadow:0 16px 40px #1b16351a}
+.wst{box-shadow:0 10px 24px #1b16350d}
+/* phones: no slow zoom (Ken Burns) on hero photos/videos, it re-draws a full-screen layer for 22 s */
+@media(max-width:900px){.cv .slot{animation:none}}

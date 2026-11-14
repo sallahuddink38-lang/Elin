@@ -1,0 +1,4 @@
+HOME HERO SLIDER - sab media yahin hai
+slide-1.mp4  -> slide 1 (video)
+slide-2.jpg  -> slide 2 (photo)
+slide-3.jpg  -> slide 3 (photo)

@@ -1,0 +1,39 @@
+/* ===================== v37: GSAP motion + 3D, header gold hover =====================
+   Everything under html.gs only applies when GSAP loaded and motion is allowed.
+   Delete css/v37.css, js/v37.js and js/vendor/ (and the 3 lines in index.html) to undo. */
+
+/* ---------- header icons (search / wishlist / account / bag): gold on hover, focus and press ---------- */
+html body header .cartb{transition:color .25s,border-color .25s,background .25s,transform .25s,box-shadow .25s}
+html body header .cartb:hover,html body header .cartb:focus-visible,html body header .cartb:active{
+ color:#1c1b1f!important;border-color:#b8862d!important;background:linear-gradient(135deg,#b8862d,#e8c566 50%,#b8862d)!important;box-shadow:0 8px 20px #b8862d66!important;transform:translateY(-2px)}
+html body header .cartb:hover svg{transform:scale(1.1);color:#1c1b1f}
+html body header .cartb svg{transition:transform .25s}
+html body header .cartb b{background:#17161b;color:#e8c566}
+/* product card buttons: add to cart + wishlist heart go gold too */
+html:not([data-th=sale]) .p .atc:hover,html:not([data-th=sale]) .p .atc:focus-visible{background:linear-gradient(135deg,#b8862d,#e8c566 50%,#b8862d);border-color:#d4a017;color:#1c1b1f}
+.hrt:hover,.hrt:focus-visible,.hrt.on{color:#d4a017}
+.hrt{transition:color .2s,transform .2s}.hrt:hover{transform:scale(1.12)}
+
+/* ---------- tilt cards: real 3D again ---------- */
+@media(prefers-reduced-motion:no-preference){
+ html body .t3.t3{transform:perspective(1000px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(14px);transition:transform .12s linear,box-shadow .3s;transform-style:preserve-3d;box-shadow:calc(var(--sx,0) * 1px) calc(var(--sy,10) * 1px + 18px) 46px #00000040;z-index:2}
+ .p.t3 .slot{transform:translateZ(22px)}
+}
+
+/* ---------- GSAP takes over reveals, hero parallax and stagger ---------- */
+html.gs .rv{opacity:1;transform:none;transition:none}
+html.gs .rv.in :is(.grid,.cats,.cols,.pair,.hpan,.buns)>*{animation:none}
+html.gs .rv .fb .slot img.ok,html.gs .rv .band .slot img.ok,html.gs .rv .story .slot img.ok{transform:none;transition:none}
+html.gs .cine .cv,html.gs .h-full .hm,html.gs .cine .cc,html.gs .h-full .ht{transform:none;transition:none}
+html.gs .cc>*{animation:none}
+html.gs .hsl{transition:opacity 1s ease,visibility 0s linear 1s;transform:none}
+html.gs .hsl.on{transition:opacity 1s ease}
+/* (no will-change / preserve-3d on revealed blocks: dozens of extra layers made scrolling lag) */
+/* gold progress line at the very top: shows how far down the page you are */
+#qprog{position:fixed;left:0;top:0;height:2px;width:100%;transform:scaleX(0);transform-origin:0 50%;background:linear-gradient(90deg,#b8862d,#f3d57a,#b8862d);z-index:95;pointer-events:none}
+@media(prefers-reduced-motion:reduce){#qprog{display:none}}
+
+/* ---------- speed: drop paint-heavy decoration, cheaper blur behind contained hero media ---------- */
+.cc h1 em{animation:none!important;background-position:0 0}
+.slot.fit .bk{filter:brightness(.7) saturate(1.15) blur(6px)!important}
+@media(max-width:900px){.rv .fb .slot img.ok,.rv .band .slot img.ok{will-change:auto}}

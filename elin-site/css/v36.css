@@ -1,0 +1,110 @@
+/* ===================== v36: quiet-luxury refinement + motion system =====================
+   Loads after v34.css. Delete this file and js/v36.js to undo.
+   1 tokens  2 calmer motion (replaces the heavy 3D of v34)  3 focus + states  4 forms
+   5 touch + responsive  6 page / reveal / menu motion  7 reduced motion */
+
+/* ---------- 1. design tokens ---------- */
+:root{
+ --q-gold:#b8862d;--q-gold-hi:#d4a017;--q-gold-soft:#e8c566;--q-ink:#17161b;--q-mut:#6b6772;--q-line:#e4ddcc;
+ --q-ease:cubic-bezier(.22,.7,.2,1);--q-fast:.2s;--q-mid:.45s;--q-slow:.9s;
+ --s1:4px;--s2:8px;--s3:16px;--s4:24px;--s5:40px;--s6:64px;--s7:96px;
+}
+body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+/* comfortable line lengths for reading text */
+.sub,.sh p,.rv>p.sub,.story p,.fbt p{max-width:62ch}
+.sh p,.cc .sub,.h-full .sub{margin-left:auto;margin-right:auto}
+.h-full .sub,.ws-hero .sub{margin-left:0}
+.h-full.v1 .sub{margin-left:auto}
+h1,h2,h3{text-wrap:balance}
+p{text-wrap:pretty}
+
+/* ---------- 2. calmer motion: quiet luxury, no extruded text, no big 3D ---------- */
+html body .cc h1,html body .h-full .ht h1{text-shadow:0 2px 24px #0006}
+html body .sh h2{text-shadow:none}
+.cir .cm::after{display:none}
+.cir .cm{box-shadow:0 6px 16px #00000026}
+html body .cta .btn:not(.o),html body .fbt .btn:not(.o){box-shadow:0 8px 22px #00000030}
+html body .cta .btn:not(.o):hover,html body .fbt .btn:not(.o):hover{transform:translateY(-2px);box-shadow:0 12px 28px #0000003d}
+html body .cta .btn:not(.o):active,html body .fbt .btn:not(.o):active{transform:translateY(0) scale(.98);box-shadow:0 4px 12px #00000030}
+@media(prefers-reduced-motion:no-preference){
+ /* sections: a short fade-up instead of the 3D rise */
+ .rv{transform:translate3d(0,28px,0);transition:opacity .8s var(--q-ease),transform .8s var(--q-ease)}
+ .rv.in{transform:none}
+ @keyframes pop3d{from{opacity:0;transform:translate3d(0,22px,0)}}
+ .rv.in :is(.grid,.cats,.cols,.pair,.hpan)>*{animation:pop3d .7s var(--q-ease) backwards}
+ .rv.in :is(.grid,.cats,.cols,.pair,.hpan)>:nth-child(n){animation-delay:calc(var(--i,0) * 60ms)}
+ /* hero slides: soft cross-fade with a tiny settle, no 3D turn */
+ .hsls{perspective:none}
+ .hsl{transform:scale(1.015);transition:opacity 1s ease,transform 1.4s var(--q-ease),visibility 0s linear 1s}
+ .hsl.on{transform:none;transition:opacity 1s ease,transform 1.4s var(--q-ease)}
+ /* menu panel: simple fade + rise */
+ #mega{transform:translateY(-6px)}#mega.on{transform:none}
+ /* cards: gentle lift + image scale only */
+ .p,.vt,.hp,.cats a,.cols a,.pair a,.gc,.sfr{transition:transform var(--q-mid) var(--q-ease),box-shadow var(--q-mid) var(--q-ease)}
+ html body .t3.t3{transform:translate3d(0,-4px,0);box-shadow:0 22px 44px #00000033;transition:transform .3s var(--q-ease),box-shadow .3s}
+ .p.t3 .slot{transform:none}
+ .cir:hover .cm{transform:translateY(-4px) scale(1.05);box-shadow:0 12px 22px #0000003d}
+ /* large pictures settle in as their section arrives */
+ .rv .fb .slot img.ok,.rv .band .slot img.ok,.rv .story .slot img.ok{transform:scale(1.06);transition:transform 1.8s var(--q-ease)}
+ .rv.in .fb .slot img.ok,.rv.in .band .slot img.ok,.rv.in .story .slot img.ok{transform:none}
+ /* mega menu + mobile menu */
+ #mega{transition:opacity .28s var(--q-ease),transform .32s var(--q-ease)}
+ #mmenu{transition:transform .38s var(--q-ease),visibility 0s .38s}
+ #mmenu .mml>*{opacity:0;transform:translateX(-10px)}
+ #mmenu.on .mml>*{opacity:1;transform:none;transition:opacity .4s var(--q-ease),transform .4s var(--q-ease);transition-delay:calc(var(--i,0) * 28ms + .12s)}
+ /* every button: tactile press */
+ .btn:active,.cartb:active,.cb:active{transform:scale(.97)}
+ .cartb,.cb{transition:background .2s,color .2s,border-color .2s,transform .15s}
+}
+
+/* ---------- 3. one focus ring, every interactive element ---------- */
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid var(--q-gold-hi);outline-offset:3px;border-radius:2px}
+body.hpage.hov :where(a,button):focus-visible,.cine :where(a,button):focus-visible,.h-full :where(a,button):focus-visible{outline-color:#fff;box-shadow:0 0 0 5px #b8862d}
+.skip:focus{outline:2px solid var(--q-gold-hi)}
+/* button states */
+.btn{transition:transform var(--q-fast),box-shadow var(--q-fast),opacity var(--q-fast),background var(--q-fast),color var(--q-fast),border-color var(--q-fast)}
+.btn:disabled,.btn[aria-disabled=true]{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none;filter:grayscale(.3)}
+.btn[aria-busy=true]{position:relative;color:transparent!important;pointer-events:none}
+.btn[aria-busy=true]::before{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:qspin .7s linear infinite}
+@keyframes qspin{to{transform:rotate(360deg)}}
+
+/* ---------- 4. forms (storefront): clear focus, helpful invalid / success states ---------- */
+.form input,.form textarea,.form select,.xf input,.xf textarea,.xf select,.co .fl input,.co .fl select,.co .fl textarea,.cpn input,#ck input,#ck textarea{transition:border-color .2s,box-shadow .2s,background .2s}
+.form input:focus,.form textarea:focus,.form select:focus,.xf input:focus,.xf textarea:focus,.xf select:focus,.co .fl input:focus,.co .fl select:focus,.co .fl textarea:focus{outline:0;border-color:var(--q-gold);box-shadow:0 0 0 4px #b8862d26;background:#fff}
+.xf input:user-invalid,.xf select:user-invalid,.xf textarea:user-invalid,.co .fl input:user-invalid,.form input:user-invalid{border-color:#b3261e;box-shadow:0 0 0 3px #b3261e1a}
+.fe,.fh{max-width:60ch}
+.fe:not([hidden]){color:#b3261e;font-size:13px;margin-top:6px;animation:qin .3s var(--q-ease)}
+@keyframes qin{from{opacity:0;transform:translateY(-4px)}}
+::placeholder{color:#8a8590;opacity:1}
+
+/* ---------- 5. touch + responsive ---------- */
+@media(pointer:coarse){
+ .cartb,.cb,.hav,.mmb,.mmx,.mmt,.snd,#bt{min-width:44px;min-height:44px}
+ .hdots button{position:relative}
+ .hdots button::before{content:"";position:absolute;inset:-14px -4px}
+ nav>div>a{min-height:44px;display:flex;align-items:center}
+ .chips a,.pill span{min-height:40px;display:inline-flex;align-items:center}
+}
+@media(min-width:1800px){body{font-size:17px}.sh h2{font-size:clamp(34px,2.4vw,48px)}}
+@media(max-width:600px){
+ .sh{gap:6px}
+ .rv{padding-top:clamp(40px,10vw,56px);padding-bottom:clamp(40px,10vw,56px)}
+ .btn{min-height:44px}
+}
+/* never let media or long words break the layout */
+img,video,canvas{max-width:100%}
+main{overflow-x:clip}
+.sh h1,.sh h2,.p b{overflow-wrap:anywhere}
+
+/* ---------- 6. page transition ---------- */
+main#m.q-enter{animation:qpage .45s var(--q-ease) both}
+@keyframes qpage{from{opacity:0;transform:translate3d(0,10px,0)}}
+
+/* ---------- 7. reduced motion: everything calm and instant ---------- */
+@media(prefers-reduced-motion:reduce){
+ *,*::before,*::after{scroll-behavior:auto!important}
+ .rv{opacity:1!important;transform:none!important}
+ main#m.q-enter,.fe:not([hidden]){animation:none}
+ #mmenu .mml>*{opacity:1;transform:none}
+ .btn[aria-busy=true]::before{animation-duration:1.6s}
+}

@@ -1,0 +1,41 @@
+/* ===================== v48: mobile fixes round 2 =====================
+   To undo: delete css/v48.css and its <link> in index.html. */
+
+/* 1. End banners ("ELIN / Timeless beauty", "Walk in with confidence"): min-height + aspect-ratio forced them 750-840px wide on phones, so the text ran off the right edge */
+html body .fb,html[data-th] body .fb{width:100%;max-width:100%;min-width:0}
+@media(max-width:700px){
+ html body .fb,html[data-th] body .fb{aspect-ratio:auto!important;min-height:240px}
+ html body .fbt.c{padding:0 6vw}
+ html body .fbt.c h2{letter-spacing:.1em}
+ html body .fbt p{font-size:16px}
+}
+
+/* 2. Footer links were glued together (Bags GalleryHair AccessoriesGifts Gallery...) */
+@media(max-width:899px){
+ html body #foot>div>a{display:block;padding:9px 0;min-height:36px}
+ html body #foot .soc a{display:grid;padding:0;min-height:0}
+ html body #foot .adl{display:inline-flex;min-height:0;padding:9px 18px}
+}
+
+/* 3. "Our Reviews" tab: slimmer on phones, and the footer bar keeps clear of it */
+@media(max-width:700px){
+ html body #rvtab{padding:9px 4px;font-size:12px;gap:6px}
+ html body #rvtab svg{width:15px;height:15px}
+ html body .fbar{padding-right:46px}
+}
+
+/* 4. Search dialog: never scrolls sideways */
+html body .mbox.sbig,html body .sbox{overflow-x:hidden}
+
+/* 5. Back-to-top button: smaller so it covers less of the product cards */
+@media(max-width:700px){html body #bt{width:40px;height:40px;min-width:40px;min-height:40px;left:12px;bottom:14px}}
+
+/* 6. Product cards in the grid had the section padding (40-56px on top) so the first card sat lower than the next one */
+html body .p.rv{padding-top:0;padding-bottom:0}
+html body[data-th=stationery] .p.rv,html[data-th=stationery] body .p.rv,html[data-th=toys] body .p.rv{padding-top:10px;padding-bottom:10px}
+
+/* 7. Phones: "Watch & shop" shows 2 videos side by side (it was 1 full-width video) */
+@media(max-width:560px){
+ html body .rvfull .ct.reels>.vt,html body .rvfull .ct.reels>.vt:nth-child(n),html[data-th=home] body .rvfull .ct.reels>.vt,html[data-th=home] .rvfull .ct.reels>.vt:nth-child(n){flex:0 0 50vw;aspect-ratio:3/4;max-height:none;height:auto}
+ html body .rvfull .ct.reels{scroll-behavior:smooth}
+}

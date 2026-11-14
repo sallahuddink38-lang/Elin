@@ -1,0 +1,44 @@
+# Apache / cPanel hosting: upload this file next to index.html
+Options -Indexes
+<IfModule mod_headers.c>
+  Header always set X-Frame-Options "DENY"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com https://connect.facebook.net 'unsafe-hashes' 'sha256-OK0YXrWLIss9hDRqlNJ1XcaEN8t4Ld4bwoH2SRAnS4g=' 'sha256-M2hFqj80CS5Kw2DqoSU7Xxa3OG6H9BdDjsZ4aD/08ng=' 'sha256-6gFHPOJUbSnqxy7ovj7hzBKTmDC5R0NeLQ8QSnRKJpw=' 'sha256-mW3/Dp1Czvttv72mYqmU/FYCSeC8fRbdAI2EXjyCk8A=' 'sha256-ArXdL3CZLS7pUnx1jvSc/DHj8Cv0ajJxsgPpO6UCmc0=' 'sha256-9xjkO7Lsx7PTGyDTEQ2ZHwIkSpwfm3DGLrmTZfg90OQ=' 'sha256-Umy1/BNIQqgpOuG7VAmOSa5jEHVMH7jZt6to3c/Oiio=' 'sha256-XOxVJbuZCRWvLNl++TFd/5fDbvE0giewhPKQTiA/iqw=' 'sha256-XDMJPNq7NPVvf/XrGYheWBHhD+uRtzOHM7pTrob0UxQ=' 'sha256-rKbBeaWYbQiRSY/q32aTxEGfmLiO9nVKp0QkU8KvOII='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://graph.facebook.com https://www.facebook.com https://web.facebook.com https://connect.facebook.net https://script.google.com https://script.googleusercontent.com https://formsubmit.co https://accounts.google.com; frame-src https://accounts.google.com https://www.facebook.com https://web.facebook.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+</IfModule>
+# force https
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [L,R=301]
+</IfModule>
+# internal notes must not be public
+<FilesMatch "^(README\.txt|AUDIT\.md|google-apps-script\.txt)$">
+  Require all denied
+</FilesMatch>
+
+# speed: browsers keep pictures, videos, fonts, css and js instead of downloading them on every visit
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg "access plus 1 day"
+  ExpiresByType image/png "access plus 1 day"
+  ExpiresByType image/webp "access plus 1 day"
+  ExpiresByType image/svg+xml "access plus 1 day"
+  ExpiresByType video/mp4 "access plus 1 day"
+  ExpiresByType video/webm "access plus 1 day"
+  ExpiresByType text/css "access plus 1 hour"
+  ExpiresByType application/javascript "access plus 1 hour"
+  ExpiresByType text/javascript "access plus 1 hour"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "^store-data\.js$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript application/json image/svg+xml
+</IfModule>

@@ -1,0 +1,33 @@
+/* ===================== v49: phone header (S button) + forms =====================
+   Loads last. To undo: delete css/v49.css and its <link> in index.html. */
+
+/* 1. Header buttons: the browser's default button padding (6px each side) squeezed the content box, so the round "S" avatar (30px) spilled out of its ring to the right. No padding + centred content fixes it for every icon. */
+html body header .cartb{padding:0;box-sizing:border-box;display:grid;place-items:center;overflow:visible;flex:0 0 auto}
+html body header .cartb .av{width:28px;height:28px;margin:0;flex:none;font-size:13px;line-height:1;overflow:hidden;justify-self:center;align-self:center}
+html body header .cartb svg{flex:none}
+@media(max-width:700px){
+ html body header .top{box-sizing:border-box;width:100%;max-width:100%;gap:5px;padding:8px 3vw}
+ html body header .cartb{width:40px;height:40px;min-width:0;min-height:0}
+ html body header .cartb b{top:-5px;right:-5px}
+ html body header .logo{min-width:0;flex:1 1 0;display:flex;justify-content:center}
+ html body header .logo img.ok{max-width:100%;height:auto;max-height:40px;object-fit:contain}
+}
+@media(max-width:380px){
+ html body header .top{gap:3px;padding:8px 2vw}
+ html body header .cartb{width:36px;height:36px}
+ html body header .cartb .av{width:26px;height:26px;font-size:12px}
+ html body header .cartb svg{width:18px;height:18px}
+}
+
+/* 2. Forms on phones (checkout + wholesale): 16px text so iPhones do not zoom in, comfortable tap height, one column on narrow screens, clear error colour */
+@media(max-width:700px){
+ html body .co .fl input,html body .co .fl select,html body .co .fl textarea,
+ html body [data-f] input:not([type=checkbox]):not([type=radio]),html body [data-f] select,html body [data-f] textarea{font-size:16px}
+ html body .co .fl input,html body .co .fl select{min-height:56px}
+ html body .co .fin,html body #wrap button[type=submit],html body form button[type=submit]{min-height:52px}
+ html body .co .chk{padding:6px 0}
+}
+@media(max-width:480px){
+ html body .co .two{grid-template-columns:1fr;gap:0}
+}
+html body .co #com.err,html body #wmsg{line-height:1.45}
